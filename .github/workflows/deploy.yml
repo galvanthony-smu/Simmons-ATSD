@@ -6,21 +6,30 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      SSH_OPTS: -o BatchMode=yes -o StrictHostKeyChecking=yes
     steps:
       - uses: actions/checkout@v4
 
+      # Load your private key and known_hosts
       - uses: shimataro/ssh-key-action@v2
         with:
           key: ${{ secrets.DEPLOY_KEY }}
           known_hosts: ${{ secrets.KNOWN_HOSTS }}
 
+      # Prove we can log in and that the path exists on this host
       - name: Sanity check SSH
         run: |
           set -euxo pipefail
-          ssh -o BatchMode=yes ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 'echo OK'
+          ssh $SSH_OPTS ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            'echo "HOST=$HOSTNAME USER=$USER"; ls -ld /users/pubhtml/$USER/public_html || true'
 
-      - name: Ensure target dir
-        run: ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "mkdir -p ${{ secrets.DEPLOY_PATH }}"
+      # Ensure the target directory exists
+      - name: Ensure target directory
+        run: ssh $SSH_OPTS ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "mkdir -p ${{ secrets.DEPLOY_PATH }}"
 
+      # Upload the site/ folder
       - name: Upload via rsync
-        run: rsync -az --delete site/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
+        run: |
+          rsync -az --delete -e "ssh $SSH_OPTS" \
+            site/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
