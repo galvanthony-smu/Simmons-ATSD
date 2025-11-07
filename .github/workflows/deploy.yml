@@ -1,7 +1,6 @@
 name: Deploy static site to s2
 on:
-  push:
-    branches: [ main ]
+  push: { branches: [main] }
   workflow_dispatch: {}
 
 jobs:
@@ -10,16 +9,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Load your SSH private key + known_hosts
       - uses: shimataro/ssh-key-action@v2
         with:
           key: ${{ secrets.DEPLOY_KEY }}
           known_hosts: ${{ secrets.KNOWN_HOSTS }}
 
-      # Make sure the target directory exists on s2
-      - name: Ensure target dir exists
-        run: ssh ${{ vars.DEPLOY_USER }}@${{ vars.DEPLOY_HOST }} "mkdir -p ${{ vars.DEPLOY_PATH }}"
+      - name: Sanity check SSH
+        run: |
+          set -euxo pipefail
+          ssh -o BatchMode=yes ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 'echo OK'
 
-      # Push the site/ folder to your web root
+      - name: Ensure target dir
+        run: ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "mkdir -p ${{ secrets.DEPLOY_PATH }}"
+
       - name: Upload via rsync
-        run: rsync -az --delete site/ ${{ vars.DEPLOY_USER }}@${{ vars.DEPLOY_HOST }}:${{ vars.DEPLOY_PATH }}/
+        run: rsync -az --delete site/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/
